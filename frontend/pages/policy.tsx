@@ -1,16 +1,19 @@
 import Head from 'next/head'
 import Navbar from '../components/Navbar'
 import { Container, Typography } from '@mui/material'
+import FadeIn from '../components/FadeIn'
 
 export default function Policy() {
   return (
     <>
-      <Head><title>Data Policy</title></Head>
+      <Head><title>Политика данных</title></Head>
       <Navbar />
-      <Container sx={{py:5}}>
-        <Typography variant="h4">Data Policy</Typography>
-        <Typography>We respect your privacy. Uploaded images are stored securely and used only for analysis.</Typography>
-      </Container>
+      <FadeIn>
+        <Container sx={{py:5}}>
+          <Typography variant="h4">Политика обработки данных</Typography>
+          <Typography>Мы ценим вашу конфиденциальность. Загруженные изображения хранятся безопасно и используются только для анализа.</Typography>
+        </Container>
+      </FadeIn>
     </>
   )
 }

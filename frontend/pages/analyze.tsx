@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Head from 'next/head'
 import Navbar from '../components/Navbar'
 import { Container, Typography, Box, Button, LinearProgress } from '@mui/material'
+import FadeIn from '../components/FadeIn'
 
 export default function Analyze() {
   const [file, setFile] = useState<File | null>(null)
@@ -30,25 +31,27 @@ export default function Analyze() {
 
   return (
     <>
-      <Head><title>Analyze</title></Head>
+      <Head><title>Анализ</title></Head>
       <Navbar />
-      <Container sx={{py:5}}>
-        <Typography variant="h4" gutterBottom>Analyze X-ray</Typography>
-        <input type="file" accept="image/*" onChange={handleFileChange} />
-        <Button variant="contained" sx={{ml:2}} onClick={submit}>Send</Button>
-        {loading && <LinearProgress sx={{my:2}}/>}
-        {result && (
-          <Box sx={{mt:2}}>
-            <Typography variant="h6">Result: {result.top_class}</Typography>
-            <Typography>{result.description}</Typography>
-            <ul>
-              {result.predictions.map((p:any) => (
-                <li key={p.label}>{p.label}: {(p.probability*100).toFixed(1)}%</li>
-              ))}
-            </ul>
-          </Box>
-        )}
-      </Container>
+      <FadeIn>
+        <Container sx={{py:5}}>
+          <Typography variant="h4" gutterBottom>Загрузите рентген</Typography>
+          <input type="file" accept="image/*" onChange={handleFileChange} />
+          <Button variant="contained" sx={{ml:2}} onClick={submit}>Отправить</Button>
+          {loading && <LinearProgress sx={{my:2}}/>}
+          {result && (
+            <Box sx={{mt:2}}>
+              <Typography variant="h6">Результат: {result.top_class}</Typography>
+              <Typography>{result.description}</Typography>
+              <ul>
+                {result.predictions.map((p:any) => (
+                  <li key={p.label}>{p.label}: {(p.probability*100).toFixed(1)}%</li>
+                ))}
+              </ul>
+            </Box>
+          )}
+        </Container>
+      </FadeIn>
     </>
   )
 }
