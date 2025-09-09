@@ -1,0 +1,209 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block page_title %}Управление пользователями{% endblock %}
+{% block page_subtitle %}Просмотр и управление всеми пользователями системы{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-admin">
+        <li class="breadcrumb-item"><a href="{% url 'admin_panel:dashboard' %}">Главная</a></li>
+        <li class="breadcrumb-item active">Пользователи</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Actions and Filters -->
+<div class="row mb-4">
+    <div class="col-12 col-lg-8">
+        <div class="card admin-card">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Роль</label>
+                        <select name="role" class="form-select">
+                            <option value="">Все роли</option>
+                            {% for value, label in role_choices %}
+                            <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Статус</label>
+                        <select name="status" class="form-select">
+                            <option value="">Все статусы</option>
+                            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Активные</option>
+                            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Неактивные</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid gap-2 d-md-block">
+                            <button type="submit" class="btn btn-primary btn-admin me-2">
+                                <i class="bi bi-funnel me-1"></i>Применить
+                            </button>
+                            <a href="{% url 'admin_panel:users_list' %}" class="btn btn-outline-secondary btn-admin">
+                                Сбросить
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card admin-card">
+            <div class="card-body text-center">
+                <h5>Статистика по ролям</h5>
+                {% for stat in role_stats %}
+                <div class="mb-2">
+                    <span class="badge badge-role badge-{{ stat.role }} me-2">
+                        {% if stat.role == 'superuser' %}Администратор
+                        {% elif stat.role == 'foreman' %}Прораб
+                        {% else %}Подрядчик
+                        {% endif %}
+                    </span>
+                    <strong>{{ stat.count }}</strong>
+                </div>
+                {% endfor %}
+                <hr>
+                <a href="{% url 'admin_panel:create_user' %}" class="btn btn-success btn-admin w-100">
+                    <i class="bi bi-person-plus me-2"></i>
+                    Добавить пользователя
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="card admin-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-people me-2"></i>
+            Список пользователей ({{ users.count }})
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-admin mb-0">
+                <thead>
+                    <tr>
+                        <th>Пользователь</th>
+                        <th>Email</th>
+                        <th>Роль</th>
+                        <th>Телефон</th>
+                        <th>Статус</th>
+                        <th>Дата создания</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_obj in users %}
+                    <tr>
+                        <td data-label="Пользователь">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar me-2" style="width: 35px; height: 35px; background: linear-gradient(135deg, #2c5aa0 0%, #1e3d72 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.8rem;">
+                                    {{ user_obj.first_name.0|default:user_obj.email.0|upper }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ user_obj.get_full_name|default:"—" }}</div>
+                                    <small class="text-muted">ID: {{ user_obj.id|slice:":8" }}...</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="Email">
+                            <code>{{ user_obj.email }}</code>
+                        </td>
+                        <td data-label="Роль">
+                            <span class="badge badge-role badge-{{ user_obj.role }}">
+                                {{ user_obj.get_role_display }}
+                            </span>
+                        </td>
+                        <td data-label="Телефон">
+                            {{ user_obj.phone|default:"—" }}
+                        </td>
+                        <td data-label="Статус">
+                            {% if user_obj.is_active %}
+                                <span class="badge bg-success">Активен</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Неактивен</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Дата создания">
+                            <small>{{ user_obj.created_at|date:"d.m.Y H:i" }}</small>
+                        </td>
+                        <td data-label="Действия">
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'admin_panel:edit_user' user_obj.pk %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Редактировать">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                
+                                {% if user_obj != user %}
+                                <form method="post" action="{% url 'admin_panel:toggle_user_status' user_obj.pk %}" 
+                                      class="d-inline" 
+                                      onsubmit="return confirm('Изменить статус пользователя?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm {% if user_obj.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" 
+                                            title="{% if user_obj.is_active %}Деактивировать{% else %}Активировать{% endif %}">
+                                        <i class="bi bi-{% if user_obj.is_active %}pause{% else %}play{% endif %}"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="bi bi-people" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">Пользователи не найдены</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Help Card -->
+<div class="card admin-card mt-4">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="bi bi-info-circle me-2"></i>
+            Справка по управлению пользователями
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-12 col-md-4 mb-3">
+                <h6>Роли пользователей:</h6>
+                <ul class="list-unstyled">
+                    <li class="mb-2"><span class="badge badge-superuser me-2">Администратор</span> Полный доступ</li>
+                    <li class="mb-2"><span class="badge badge-foreman me-2">Прораб</span> Управление проектами</li>
+                    <li class="mb-2"><span class="badge badge-contractor me-2">Подрядчик</span> Добавление расходов</li>
+                </ul>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+                <h6>Действия:</h6>
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="bi bi-pencil me-2"></i> Редактировать данные</li>
+                    <li class="mb-2"><i class="bi bi-pause me-2"></i> Деактивировать пользователя</li>
+                    <li class="mb-2"><i class="bi bi-play me-2"></i> Активировать пользователя</li>
+                </ul>
+            </div>
+            <div class="col-12 col-md-4">
+                <h6>Фильтрация:</h6>
+                <p class="small text-muted">
+                    Используйте фильтры для поиска пользователей по роли и статусу. 
+                    Неактивные пользователи не могут входить в систему.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
