@@ -86,6 +86,16 @@
         transform: rotate(5deg);
     }
 
+    .kanban-item.pending-approval {
+        border: 2px solid #ffc107;
+        background: linear-gradient(135deg, #fff3cd, #ffffff);
+        box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+    }
+
+    .kanban-item.pending-approval:hover {
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4);
+    }
+
     .kanban-item-title {
         font-weight: 600;
         font-size: 0.95rem;
@@ -484,12 +494,19 @@
         
         <div class="kanban-items" data-column-id="{{ column.id }}">
             {% for item in column.items.all %}
-            <div class="kanban-item" 
-                 data-item-id="{{ item.id }}" 
-                 draggable="true"
-                 style="border-left-color: {% if item.category %}{{ item.category.color }}{% else %}var(--primary-color){% endif %};">
+                <div class="kanban-item {% if item.has_pending_status_change %}pending-approval{% endif %}" 
+                     data-item-id="{{ item.id }}" 
+                     draggable="true"
+                     style="border-left-color: {% if item.category %}{{ item.category.color }}{% else %}var(--primary-color){% endif %};">
                 
-                <div class="kanban-item-title">{{ item.title }}</div>
+                <div class="kanban-item-title">
+                    {{ item.title }}
+                    {% if item.has_pending_status_change %}
+                    <span class="badge bg-warning ms-2" title="Ожидает утверждения админа">
+                        <i class="bi bi-clock"></i> Ожидает
+                    </span>
+                    {% endif %}
+                </div>
                 
                 {% if item.description %}
                 <div class="kanban-item-description">
@@ -498,7 +515,7 @@
                 {% endif %}
 
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="expense-type-badge">{{ item.get_expense_type_display }}</span>
+                    <span class="expense-type-badge">{{ item.get_task_type_display }}</span>
                     <span class="kanban-item-priority priority-{{ item.priority }}">
                         {{ item.get_priority_display }}
                     </span>
@@ -523,6 +540,9 @@
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="viewExpenseItem('{{ item.id }}')">
                         <i class="bi bi-eye"></i>
                     </button>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="showCommentModal('{{ item.id }}')" title="Добавить комментарий">
+                        <i class="bi bi-chat-dots"></i>
+                    </button>
                     {% if can_manage %}
                     <button class="btn btn-sm btn-outline-warning me-1" onclick="editExpenseItem('{{ item.id }}')">
                         <i class="bi bi-pencil"></i>
@@ -532,6 +552,18 @@
                         <i class="bi bi-x"></i>
                     </button>
                     {% endif %}
+                    {% endif %}
+                    
+                    <!-- Кнопки для подтверждения/отклонения запросов на изменение статуса -->
+                    {% if item.has_pending_status_change and user.is_admin_role %}
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-success me-1" onclick="approveStatusChange('{{ item.id }}')" title="Утвердить изменение статуса">
+                            <i class="bi bi-check-circle"></i> Утвердить
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectStatusChange('{{ item.id }}')" title="Отклонить изменение статуса">
+                            <i class="bi bi-x-circle"></i> Отклонить
+                        </button>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -667,6 +699,49 @@
         </div>
     </div>
 </div>
+
+<!-- Comment Modal -->
+<div class="modal fade" id="commentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-chat-dots me-2"></i>Добавить комментарий
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="commentModalForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="commentText" class="form-label">Комментарий *</label>
+                        <textarea class="form-control" id="commentText" name="text" rows="4" placeholder="Ваш комментарий..." required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="commentFile" class="form-label">Прикрепить файл (необязательно)</label>
+                        <input type="file" class="form-control" id="commentFile" name="attachments" 
+                               accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.txt">
+                        <div class="form-text">Поддерживаются: изображения, PDF, документы, видео (макс. 50 МБ)</div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="commentInternal" name="is_internal">
+                        <label class="form-check-label" for="commentInternal">
+                            Внутренний комментарий (виден только команде)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveCommentBtn">
+                    <i class="bi bi-check me-2"></i>Добавить комментарий
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -772,6 +847,7 @@ function moveExpenseItem(itemId, targetColumnId) {
 function initializeModals() {
     const saveExpenseBtn = document.getElementById('saveExpenseBtn');
     const confirmRejectBtn = document.getElementById('confirmRejectBtn');
+    const saveCommentBtn = document.getElementById('saveCommentBtn');
 
     if (saveExpenseBtn) {
         saveExpenseBtn.addEventListener('click', saveExpense);
@@ -779,6 +855,10 @@ function initializeModals() {
 
     if (confirmRejectBtn) {
         confirmRejectBtn.addEventListener('click', confirmReject);
+    }
+
+    if (saveCommentBtn) {
+        saveCommentBtn.addEventListener('click', saveComment);
     }
 }
 
@@ -889,6 +969,136 @@ function confirmReject() {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="bi bi-x me-2"></i>Отклонить';
     });
+}
+
+let currentCommentItemId = null;
+
+function showCommentModal(itemId) {
+    currentCommentItemId = itemId;
+    const modal = new bootstrap.Modal(document.getElementById('commentModal'));
+    modal.show();
+    
+    // Очищаем форму при открытии
+    document.getElementById('commentModalForm').reset();
+}
+
+function saveComment() {
+    const form = document.getElementById('commentModalForm');
+    const formData = new FormData(form);
+    
+    const text = formData.get('text').trim();
+    if (!text) {
+        alert('Пожалуйста, введите текст комментария');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('saveCommentBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Сохранение...';
+    
+    fetch(`/kanban/api/add-comment/${currentCommentItemId}/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('commentModal'));
+            modal.hide();
+            
+            // Показываем уведомление об успехе
+            showNotification('Комментарий добавлен успешно!', 'success');
+        } else {
+            alert('Ошибка при добавлении комментария: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Произошла ошибка при добавлении комментария');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check me-2"></i>Добавить комментарий';
+    });
+}
+
+function showNotification(message, type = 'info') {
+    // Создаем уведомление
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Автоматически удаляем через 3 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+// Функции для подтверждения/отклонения запросов на изменение статуса
+function approveStatusChange(itemId) {
+    if (confirm('Утвердить изменение статуса задачи?')) {
+        fetch(`/kanban/api/approve-status-change/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                location.reload(); // Перезагружаем страницу для обновления статусов
+            } else {
+                showNotification(data.error || 'Ошибка при утверждении', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Ошибка сервера', 'error');
+        });
+    }
+}
+
+function rejectStatusChange(itemId) {
+    const reason = prompt('Укажите причину отклонения (необязательно):');
+    if (reason !== null) { // Если пользователь не нажал "Отмена"
+        fetch(`/kanban/api/reject-status-change/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                reason: reason
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                location.reload(); // Перезагружаем страницу для обновления статусов
+            } else {
+                showNotification(data.error || 'Ошибка при отклонении', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Ошибка сервера', 'error');
+        });
+    }
 }
 </script>
 {% endblock %}

@@ -212,6 +212,29 @@
         padding: 15px;
         margin: 15px 0;
     }
+    
+    .attachment-item {
+        transition: all 0.2s ease;
+    }
+    
+    .attachment-item:hover {
+        background-color: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .upload-section {
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 15px;
+    }
+    
+    .upload-section:hover {
+        border-color: #007bff;
+        background-color: #e7f3ff;
+    }
 </style>
 {% endblock %}
 
@@ -359,20 +382,72 @@
                         {% if comment.is_internal %}
                         <span class="badge bg-warning text-dark ms-2">Внутренний</span>
                         {% endif %}
+                        {% if comment.attachments.exists %}
+                        <i class="bi bi-paperclip ms-2" title="Есть вложения"></i>
+                        {% endif %}
                     </div>
                     <div class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</div>
                     <div class="comment-text">{{ comment.text|linebreaks }}</div>
+                    
+                    <!-- Вложения к комментарию -->
+                    {% if comment.attachments.exists %}
+                    <div class="comment-attachments mt-3">
+                        <h6 class="text-muted small mb-2">Вложения:</h6>
+                        <div class="row">
+                            {% for attachment in comment.attachments.all %}
+                            <div class="col-md-6 mb-2">
+                                <div class="attachment-preview d-flex align-items-center p-2 border rounded">
+                                    {% if attachment.is_image %}
+                                    <img src="{{ attachment.file.url }}" alt="{{ attachment.file_name }}" 
+                                         class="me-2" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">
+                                    {% elif attachment.is_video %}
+                                    <i class="bi bi-play-circle-fill me-2 text-primary" style="font-size: 24px;"></i>
+                                    {% elif attachment.is_document %}
+                                    <i class="bi bi-file-earmark-text me-2 text-success" style="font-size: 24px;"></i>
+                                    {% else %}
+                                    <i class="bi bi-file-earmark me-2 text-secondary" style="font-size: 24px;"></i>
+                                    {% endif %}
+                                    
+                                    <div class="flex-grow-1">
+                                        <div class="small fw-bold">{{ attachment.file_name }}</div>
+                                        <div class="small text-muted">{{ attachment.file_size|filesizeformat }}</div>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-1">
+                                        <a href="{{ attachment.file.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                        {% if attachment.is_image %}
+                                        <button class="btn btn-sm btn-outline-info" onclick="previewImage('{{ attachment.file.url }}', '{{ attachment.file_name }}')">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 {% empty %}
                 <div class="text-muted">Комментариев пока нет</div>
                 {% endfor %}
                 
                 {% if task.can_user_edit:user %}
-                <form id="commentForm" class="mt-3">
+                <form id="commentForm" class="mt-3" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="mb-3">
                         <textarea class="form-control" name="text" placeholder="Добавить комментарий..." rows="3" required></textarea>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label for="commentAttachment" class="form-label">Прикрепить файл (необязательно)</label>
+                        <input type="file" class="form-control" id="commentAttachment" name="attachments" 
+                               accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.txt">
+                        <div class="form-text">Поддерживаются: изображения, PDF, документы, видео (макс. 50 МБ)</div>
+                    </div>
+                    
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="is_internal" id="isInternal">
                         <label class="form-check-label" for="isInternal">
@@ -381,6 +456,68 @@
                     </div>
                     <button type="submit" class="btn btn-primary">Добавить комментарий</button>
                 </form>
+                {% endif %}
+            </div>
+
+            <!-- Вложения -->
+            <div class="mb-4">
+                <h5>Вложения</h5>
+                
+                <!-- Список вложений -->
+                <div id="attachmentsList" class="mb-3">
+                    {% for attachment in task.attachments.all %}
+                    <div class="attachment-item d-flex align-items-center justify-content-between p-2 border rounded mb-2">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-paperclip me-2"></i>
+                            <div>
+                                <div class="fw-bold">{{ attachment.name }}</div>
+                                <small class="text-muted">
+                                    {{ attachment.file_size|filesizeformat }} • 
+                                    {{ attachment.uploaded_by.get_full_name }} • 
+                                    {{ attachment.created_at|date:"d.m.Y H:i" }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ attachment.file.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% if attachment.uploaded_by == user or user.is_superuser %}
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteAttachment('{{ attachment.id }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-muted">Вложений пока нет</div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Форма загрузки файлов -->
+                {% if task.can_user_edit:user %}
+                <div class="upload-section">
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">Выберите файлы</label>
+                            <input type="file" class="form-control" id="fileInput" name="files" multiple 
+                                   accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.wmv,.mkv">
+                            <div class="form-text">Поддерживаются: изображения, PDF, документы, видео (макс. 50 МБ каждый)</div>
+                        </div>
+                        <button type="submit" class="btn btn-success" id="uploadBtn">
+                            <i class="bi bi-cloud-upload me-1"></i>Загрузить файлы
+                        </button>
+                    </form>
+                    
+                    <!-- Прогресс загрузки -->
+                    <div id="uploadProgress" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Загрузка файлов...</small>
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -608,6 +745,147 @@ function assignTask() {
     .catch(error => {
         console.error('Error:', error);
         alert('Ошибка назначения задачи');
+    });
+}
+
+// Загрузка файлов
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadFiles();
+        });
+    }
+});
+
+function uploadFiles() {
+    const fileInput = document.getElementById('fileInput');
+    const files = fileInput.files;
+    
+    if (files.length === 0) {
+        alert('Выберите файлы для загрузки');
+        return;
+    }
+    
+    // Проверка размера файлов
+    const maxSize = 50 * 1024 * 1024; // 50 МБ
+    for (let file of files) {
+        if (file.size > maxSize) {
+            alert(`Файл "${file.name}" слишком большой. Максимальный размер: 50 МБ`);
+            return;
+        }
+    }
+    
+    const formData = new FormData();
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Добавляем CSRF токен
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Добавляем файлы
+    for (let file of files) {
+        formData.append('files', file);
+    }
+    
+    // Показываем прогресс
+    const progressDiv = document.getElementById('uploadProgress');
+    const progressBar = progressDiv.querySelector('.progress-bar');
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    progressDiv.style.display = 'block';
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Загрузка...';
+    
+    // Загружаем файлы
+    fetch('{% url "kanban:upload_task_files" task.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем список вложений
+            location.reload();
+        } else {
+            alert('Ошибка загрузки файлов: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка загрузки файлов');
+    })
+    .finally(() => {
+        // Скрываем прогресс
+        progressDiv.style.display = 'none';
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>Загрузить файлы';
+        fileInput.value = '';
+    });
+}
+
+function deleteAttachment(attachmentId) {
+    if (!confirm('Удалить это вложение?')) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch(`{% url "kanban:delete_task_attachment" "00000000-0000-0000-0000-000000000000" %}`.replace('00000000-0000-0000-0000-000000000000', attachmentId), {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Ошибка удаления файла: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка удаления файла');
+    });
+}
+
+function previewImage(imageUrl, imageName) {
+    // Создаем модальное окно для предварительного просмотра
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">${imageName}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="${imageUrl}" class="img-fluid" alt="${imageName}" style="max-height: 70vh;">
+                </div>
+                <div class="modal-footer">
+                    <a href="${imageUrl}" class="btn btn-primary" target="_blank">
+                        <i class="bi bi-download me-1"></i>Скачать
+                    </a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    // Удаляем модальное окно после закрытия
+    modal.addEventListener('hidden.bs.modal', function() {
+        document.body.removeChild(modal);
     });
 }
 </script>

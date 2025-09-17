@@ -1,7 +1,5 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import ValidationError
-from decimal import Decimal
 from .models import Project, ProjectMember, ProjectDocument
 from accounts.models import User
 
@@ -56,7 +54,7 @@ class ProjectForm(forms.ModelForm):
         
         # Ограничиваем выбор прорабов только пользователями с соответствующей ролью
         self.fields['foreman'].queryset = User.objects.filter(
-            role=User.Role.FOREMAN,
+            role='foreman',
             is_active=True
         )
         self.fields['foreman'].empty_label = "Выберите прораба"
@@ -191,7 +189,7 @@ class ProjectSearchForm(forms.Form):
     )
     foreman = forms.ModelChoiceField(
         label=_('Прораб'),
-        queryset=User.objects.filter(role=User.Role.FOREMAN, is_active=True),
+        queryset=User.objects.filter(role='foreman', is_active=True),
         required=False,
         empty_label='Все прорабы',
         widget=forms.Select(attrs={

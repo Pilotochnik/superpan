@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import (
     ExpenseCategory, ExpenseItem, ExpenseHistory, ExpenseDocument, 
-    ExpenseComment, KanbanBoard, KanbanColumn
+    ExpenseComment, ExpenseCommentAttachment, KanbanBoard, KanbanColumn,
+    StatusChangeRequest
 )
 from .task_models import (
     TaskCategory, TaskPriority, TaskStatus, ProjectTask, 
@@ -18,6 +19,12 @@ class ExpenseDocumentInline(admin.TabularInline):
 class ExpenseCommentInline(admin.TabularInline):
     model = ExpenseComment
     extra = 0
+
+
+class ExpenseCommentAttachmentInline(admin.TabularInline):
+    model = ExpenseCommentAttachment
+    extra = 0
+    readonly_fields = ('file_size', 'created_at')
 
 
 @admin.register(ExpenseItem)
@@ -59,10 +66,47 @@ class ExpenseHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(ExpenseComment)
 class ExpenseCommentAdmin(admin.ModelAdmin):
-    list_display = ('expense_item', 'author', 'created_at')
-    list_filter = ('created_at',)
-    search_fields = ('expense_item__title', 'author__email')
-    readonly_fields = ('created_at',)
+    list_display = ('expense_item', 'author', 'is_internal', 'created_at')
+    list_filter = ('is_internal', 'created_at')
+    search_fields = ('expense_item__title', 'author__email', 'text')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [ExpenseCommentAttachmentInline]
+
+
+@admin.register(ExpenseCommentAttachment)
+class ExpenseCommentAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('comment', 'file_name', 'file_type', 'uploaded_by', 'file_size', 'created_at')
+    list_filter = ('file_type', 'created_at')
+    search_fields = ('comment__expense_item__title', 'file_name', 'uploaded_by__email')
+    readonly_fields = ('file_size', 'created_at')
+
+
+@admin.register(StatusChangeRequest)
+class StatusChangeRequestAdmin(admin.ModelAdmin):
+    list_display = ('expense_item', 'requested_by', 'old_status', 'new_status', 'status', 'created_at', 'approved_by')
+    list_filter = ('status', 'old_status', 'new_status', 'created_at')
+    search_fields = ('expense_item__title', 'requested_by__email', 'approved_by__email')
+    readonly_fields = ('created_at', 'approved_at')
+    
+    fieldsets = (
+        (_('Информация о запросе'), {
+            'fields': ('expense_item', 'requested_by', 'reason')
+        }),
+        (_('Изменение статуса'), {
+            'fields': ('old_status', 'new_status')
+        }),
+        (_('Утверждение'), {
+            'fields': ('status', 'approved_by', 'approved_at', 'rejection_reason')
+        }),
+        (_('Временные метки'), {
+            'fields': ('created_at',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            'expense_item', 'requested_by', 'approved_by'
+        )
 
 
 @admin.register(KanbanBoard)

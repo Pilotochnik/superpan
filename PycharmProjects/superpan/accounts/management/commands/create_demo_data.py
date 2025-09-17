@@ -198,13 +198,13 @@ class Command(BaseCommand):
             ('Кирпич облицовочный', 'Кирпич для облицовки фасада', 'material', Decimal('65000.00'), 'high', self.categories[0], self.contractors[2], 1),
         ]
         
-        for title, description, expense_type, amount, priority, category, created_by, column_idx in expenses_data:
+        for title, description, task_type, amount, priority, category, created_by, column_idx in expenses_data:
             expense = ExpenseItem.objects.create(
                 project=self.project,
                 column=columns[column_idx],
                 title=title,
                 description=description,
-                expense_type=expense_type,
+                task_type=task_type,
                 amount=amount,
                 priority=priority,
                 category=category,

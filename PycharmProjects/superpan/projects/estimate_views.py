@@ -1,14 +1,10 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q, Sum, Count
 from django.core.paginator import Paginator
-from django.utils import timezone
-from decimal import Decimal
-import json
+from django.db.models import Sum, Count
 import logging
 
 from .models import Project, ProjectEstimate
@@ -163,7 +159,7 @@ def project_estimate_detailed(request, pk):
         'total_quantity': total_quantity,
         'total_labor_hours': total_labor_hours,
         'can_edit': (
-            request.user.is_superuser_role() or
+            request.user.is_admin_role() or
             project.created_by == request.user or
             project.foreman == request.user
         )
@@ -179,7 +175,7 @@ def add_estimate_item(request, pk):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)
@@ -239,7 +235,7 @@ def remove_estimate_item(request, pk, item_id):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)
@@ -269,7 +265,7 @@ def estimate_import(request, pk):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return HttpResponseForbidden("У вас нет доступа к этому проекту")
@@ -383,7 +379,7 @@ def apply_template_to_project(request, pk, template_id):
     template = get_object_or_404(EstimateTemplate, pk=template_id)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)

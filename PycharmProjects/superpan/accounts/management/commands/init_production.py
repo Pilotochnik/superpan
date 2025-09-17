@@ -22,7 +22,9 @@ class Command(BaseCommand):
             )
             self.stdout.write('✅ Создан суперпользователь: admin@superpan.ru / admin123')
         
-        # Запускаем команду создания тестовых данных
+        # Запускаем команды создания тестовых данных
+        call_command('populate_estimate_data')
+        call_command('populate_warehouse_data')
         call_command('reset_projects')
         call_command('add_sample_tasks')
         

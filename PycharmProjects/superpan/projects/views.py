@@ -1,18 +1,13 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponseForbidden
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+from django.http import JsonResponse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.paginator import Paginator
-from django.db.models import Q, Sum, Count
-from django.utils import timezone
-from decimal import Decimal
+from django.views.decorators.http import require_http_methods
+from django.db.models import Sum, Count
 from django_ratelimit.decorators import ratelimit
-import json
+from decimal import Decimal
 import logging
 
 from .models import Project, ProjectMember, ProjectActivity, ProjectDocument, ProjectEstimate
@@ -26,6 +21,11 @@ logger = logging.getLogger(__name__)
 def dashboard(request):
     """Главная панель управления проектами"""
     user = request.user
+    
+    # Доступ только для суперпользователей
+    if not user.is_superuser:
+        messages.error(request, 'Доступ запрещен. Только суперпользователи могут просматривать главную панель.')
+        return redirect('accounts:profile')
     
     # Получаем проекты в зависимости от роли пользователя
     projects = user.get_accessible_projects()
@@ -120,7 +120,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         
         # Статистика расходов (будет реализована в kanban приложении)
         context['can_manage'] = (
-            self.request.user.is_superuser_role() or
+            self.request.user.can_edit_projects() or
             project.created_by == self.request.user or
             project.foreman == self.request.user
         )
@@ -131,7 +131,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 @login_required
 def create_project(request):
     """Создание нового проекта"""
-    if not request.user.can_manage_projects():
+    if not request.user.can_create_projects():
         messages.error(request, 'У вас нет прав для создания проектов.')
         return redirect('projects:dashboard')
     
@@ -141,6 +141,14 @@ def create_project(request):
             project = form.save(commit=False)
             project.created_by = request.user
             project.save()
+            
+            # Добавляем создателя как участника проекта с ролью admin
+            ProjectMember.objects.create(
+                project=project,
+                user=request.user,
+                role='admin',
+                is_active=True
+            )
             
             # Создаем активность
             ProjectActivity.objects.create(
@@ -164,7 +172,7 @@ def edit_project(request, pk):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права на редактирование
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         messages.error(request, 'У вас нет прав для редактирования этого проекта.')
@@ -212,7 +220,7 @@ def generate_access_key(request, pk):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)
@@ -289,7 +297,7 @@ def project_members(request, pk):
         'members': members,
         'access_keys': access_keys,
         'can_manage': (
-            request.user.is_superuser_role() or
+            request.user.can_edit_projects() or
             project.created_by == request.user or
             project.foreman == request.user
         )
@@ -337,7 +345,7 @@ def project_estimate(request, pk):
         'expenses': expenses,
         'expense_stats': expense_stats,
         'can_add_expenses': (
-            request.user.is_superuser_role() or
+            request.user.is_admin_role() or
             project.created_by == request.user or
             project.foreman == request.user or
             request.user.role == 'contractor'
@@ -354,7 +362,7 @@ def create_estimate(request, pk):
     project = get_object_or_404(Project, pk=pk)
     
     # Проверяем права
-    if not (request.user.is_superuser_role() or 
+    if not (request.user.is_admin_role() or 
             project.created_by == request.user or 
             project.foreman == request.user):
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)

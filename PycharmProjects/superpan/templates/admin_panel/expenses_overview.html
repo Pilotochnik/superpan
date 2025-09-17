@@ -60,15 +60,15 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="d-flex align-items-center">
                         <div class="me-3">
-                            {% if type_stat.expense_type == 'material' %}
+                            {% if type_stat.task_type == 'material' %}
                                 <i class="bi bi-box text-primary" style="font-size: 1.5rem;"></i>
-                            {% elif type_stat.expense_type == 'labor' %}
+                            {% elif type_stat.task_type == 'labor' %}
                                 <i class="bi bi-person-gear text-success" style="font-size: 1.5rem;"></i>
-                            {% elif type_stat.expense_type == 'transport' %}
+                            {% elif type_stat.task_type == 'transport' %}
                                 <i class="bi bi-truck text-warning" style="font-size: 1.5rem;"></i>
-                            {% elif type_stat.expense_type == 'fuel' %}
+                            {% elif type_stat.task_type == 'fuel' %}
                                 <i class="bi bi-fuel-pump text-danger" style="font-size: 1.5rem;"></i>
-                            {% elif type_stat.expense_type == 'equipment' %}
+                            {% elif type_stat.task_type == 'equipment' %}
                                 <i class="bi bi-tools text-info" style="font-size: 1.5rem;"></i>
                             {% else %}
                                 <i class="bi bi-three-dots text-secondary" style="font-size: 1.5rem;"></i>
@@ -76,11 +76,11 @@
                         </div>
                         <div>
                             <div class="fw-bold">
-                                {% if type_stat.expense_type == 'material' %}Материалы
-                                {% elif type_stat.expense_type == 'labor' %}Работы
-                                {% elif type_stat.expense_type == 'transport' %}Транспорт
-                                {% elif type_stat.expense_type == 'fuel' %}Топливо
-                                {% elif type_stat.expense_type == 'equipment' %}Оборудование
+                                {% if type_stat.task_type == 'material' %}Материалы
+                                {% elif type_stat.task_type == 'labor' %}Работы
+                                {% elif type_stat.task_type == 'transport' %}Транспорт
+                                {% elif type_stat.task_type == 'fuel' %}Топливо
+                                {% elif type_stat.task_type == 'equipment' %}Оборудование
                                 {% else %}Прочее
                                 {% endif %}
                             </div>
@@ -182,7 +182,7 @@
                         </td>
                         <td>
                             <span class="badge bg-light text-dark">
-                                {{ expense.get_expense_type_display }}
+                                {{ expense.get_task_type_display }}
                             </span>
                         </td>
                         <td>

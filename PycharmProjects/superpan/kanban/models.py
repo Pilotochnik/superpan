@@ -90,6 +90,26 @@ class KanbanColumn(models.Model):
         return f"{self.board.project.name} - {self.name}"
 
 
+class ConstructionStage(models.Model):
+    """Этапы строительства"""
+    
+    name = models.CharField(_('Название этапа'), max_length=200)
+    description = models.TextField(_('Описание'), blank=True)
+    order = models.PositiveIntegerField(_('Порядок'), default=0)
+    color = models.CharField(_('Цвет'), max_length=7, default='#007bff')
+    is_active = models.BooleanField(_('Активен'), default=True)
+    created_at = models.DateTimeField(_('Создан'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Этап строительства')
+        verbose_name_plural = _('Этапы строительства')
+        db_table = 'construction_stages'
+        ordering = ['order', 'name']
+    
+    def __str__(self):
+        return self.name
+
+
 class ExpenseItem(models.Model):
     """Элемент задачи (карточка в канбан)"""
     
@@ -108,6 +128,8 @@ class ExpenseItem(models.Model):
         INSTALLATION = 'installation', _('Монтаж')
         CONTROL = 'control', _('Контроль')
         DOCUMENTATION = 'documentation', _('Документация')
+        MESSAGE = 'message', _('Сообщение')
+        PHOTO_REPORT = 'photo_report', _('Фотоотчет')
         OTHER = 'other', _('Прочее')
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -116,6 +138,14 @@ class ExpenseItem(models.Model):
         on_delete=models.CASCADE,
         verbose_name=_('Проект'),
         related_name='expense_items'
+    )
+    stage = models.ForeignKey(
+        ConstructionStage,
+        on_delete=models.SET_NULL,
+        verbose_name=_('Этап строительства'),
+        related_name='tasks',
+        null=True,
+        blank=True
     )
     column = models.ForeignKey(
         KanbanColumn,
@@ -251,10 +281,24 @@ class ExpenseItem(models.Model):
             return False
         from django.utils import timezone
         return self.due_date < timezone.now()
+    
+    def can_user_change_status(self, user):
+        """Проверяет, может ли пользователь менять статус задачи"""
+        # Админ может менять статус напрямую
+        if user.is_admin_role():
+            return True
         
-        # Обновляем потраченную сумму проекта
-        if self.status == self.Status.APPROVED:
-            self.project.update_spent_amount()
+        # Остальные пользователи могут только запрашивать изменение
+        return False
+    
+    def has_pending_status_change(self):
+        """Проверяет, есть ли ожидающий утверждения запрос на изменение статуса"""
+        return self.status_change_requests.filter(status=StatusChangeRequest.Status.PENDING).exists()
+    
+    @property
+    def pending_status_request(self):
+        """Возвращает ожидающий утверждения запрос на изменение статуса"""
+        return self.status_change_requests.filter(status=StatusChangeRequest.Status.PENDING).first()
 
 
 class ExpenseDocument(models.Model):
@@ -334,6 +378,73 @@ class ExpenseComment(models.Model):
         return f"Комментарий к {self.expense_item.title}"
 
 
+class ExpenseCommentAttachment(models.Model):
+    """Вложения к комментариям задач"""
+    
+    comment = models.ForeignKey(
+        ExpenseComment,
+        on_delete=models.CASCADE,
+        verbose_name=_('Комментарий'),
+        related_name='attachments'
+    )
+    file = models.FileField(
+        _('Файл'),
+        upload_to='task_comments/attachments/',
+        help_text=_('Загрузите фото, видео или документ')
+    )
+    file_name = models.CharField(_('Название файла'), max_length=255)
+    file_size = models.PositiveIntegerField(_('Размер файла'), blank=True, null=True)
+    file_type = models.CharField(
+        _('Тип файла'),
+        max_length=50,
+        choices=[
+            ('image', _('Изображение')),
+            ('video', _('Видео')),
+            ('document', _('Документ')),
+            ('other', _('Другое')),
+        ],
+        default='other'
+    )
+    uploaded_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        verbose_name=_('Загрузил'),
+        related_name='uploaded_comment_attachments'
+    )
+    created_at = models.DateTimeField(_('Загружен'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Вложение к комментарию')
+        verbose_name_plural = _('Вложения к комментариям')
+        db_table = 'expense_comment_attachments'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.comment.expense_item.title} - {self.file_name}"
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_size:
+            self.file_size = self.file.size
+        if self.file and not self.file_name:
+            self.file_name = self.file.name
+        super().save(*args, **kwargs)
+
+    @property
+    def is_image(self):
+        """Проверка, является ли файл изображением"""
+        return self.file_type == 'image'
+
+    @property
+    def is_video(self):
+        """Проверка, является ли файл видео"""
+        return self.file_type == 'video'
+
+    @property
+    def is_document(self):
+        """Проверка, является ли файл документом"""
+        return self.file_type == 'document'
+
+
 class ExpenseHistory(models.Model):
     """История изменений расходов"""
     
@@ -363,3 +474,77 @@ class ExpenseHistory(models.Model):
 
     def __str__(self):
         return f"{self.expense_item.title} - {self.action}"
+
+
+class StatusChangeRequest(models.Model):
+    """Запросы на изменение статуса задач (ожидают утверждения)"""
+    
+    class Status(models.TextChoices):
+        PENDING = 'pending', _('Ожидает утверждения')
+        APPROVED = 'approved', _('Утверждено')
+        REJECTED = 'rejected', _('Отклонено')
+    
+    expense_item = models.ForeignKey(
+        ExpenseItem,
+        on_delete=models.CASCADE,
+        verbose_name=_('Задача'),
+        related_name='status_change_requests'
+    )
+    requested_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        verbose_name=_('Запросил'),
+        related_name='requested_status_changes'
+    )
+    old_status = models.CharField(
+        _('Старый статус'),
+        max_length=20,
+        choices=ExpenseItem.Status.choices
+    )
+    new_status = models.CharField(
+        _('Новый статус'),
+        max_length=20,
+        choices=ExpenseItem.Status.choices
+    )
+    reason = models.TextField(_('Причина изменения'), blank=True)
+    status = models.CharField(
+        _('Статус запроса'),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    approved_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        verbose_name=_('Утвердил'),
+        related_name='approved_status_changes',
+        null=True,
+        blank=True
+    )
+    approved_at = models.DateTimeField(_('Дата утверждения'), null=True, blank=True)
+    rejection_reason = models.TextField(_('Причина отклонения'), blank=True)
+    created_at = models.DateTimeField(_('Создан'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Запрос на изменение статуса')
+        verbose_name_plural = _('Запросы на изменение статуса')
+        db_table = 'status_change_requests'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.expense_item.title}: {self.get_old_status_display()} → {self.get_new_status_display()}"
+    
+    @property
+    def is_pending(self):
+        """Проверяет, ожидает ли запрос утверждения"""
+        return self.status == self.Status.PENDING
+    
+    @property
+    def is_approved(self):
+        """Проверяет, утвержден ли запрос"""
+        return self.status == self.Status.APPROVED
+    
+    @property
+    def is_rejected(self):
+        """Проверяет, отклонен ли запрос"""
+        return self.status == self.Status.REJECTED

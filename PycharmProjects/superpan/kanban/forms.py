@@ -1,10 +1,8 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
-from decimal import Decimal
-import re
 
-from .models import ExpenseItem, ExpenseDocument, ExpenseComment, ExpenseCategory
+from .models import ExpenseItem, ExpenseDocument, ExpenseComment, ExpenseCommentAttachment, ExpenseCategory
 from accounts.base_forms import BaseExpenseForm
 from constants import (
     MAX_FILE_SIZE, MAX_COMMENT_LENGTH, ALLOWED_FILE_EXTENSIONS, 
@@ -210,7 +208,17 @@ class ExpenseDocumentForm(forms.ModelForm):
 
 
 class ExpenseCommentForm(forms.ModelForm):
-    """Форма добавления комментария к расходу"""
+    """Форма добавления комментария к расходу с возможностью прикрепления файлов"""
+    
+    attachments = forms.FileField(
+        label=_('Вложения'),
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.txt'
+        }),
+        help_text=_('Загрузите файл: фото, видео или документ')
+    )
     
     class Meta:
         model = ExpenseComment
@@ -232,6 +240,7 @@ class ExpenseCommentForm(forms.ModelForm):
             raise ValidationError(_('Комментарий не может быть пустым.'))
         
         # Защита от XSS - удаляем потенциально опасные теги
+        import re
         for pattern in DANGEROUS_XSS_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 raise ValidationError(_('Комментарий содержит недопустимое содержимое.'))
@@ -241,6 +250,66 @@ class ExpenseCommentForm(forms.ModelForm):
             raise ValidationError(_('Комментарий слишком длинный (максимум 2000 символов).'))
         
         return text
+    
+    def clean_attachments(self):
+        file = self.cleaned_data.get('attachments')
+        if not file:
+            return file
+            
+        # Проверяем размер файла (увеличиваем лимит для видео)
+        max_size = MAX_FILE_SIZE * 10 if self._is_video_file(file.name) else MAX_FILE_SIZE
+        if file.size > max_size:
+            raise ValidationError(_(f'Размер файла {file.name} не должен превышать {max_size // (1024*1024)} МБ.'))
+        
+        # Проверяем расширение файла
+        file_name = file.name.lower()
+        allowed_extensions = ALLOWED_FILE_EXTENSIONS + ['.mp4', '.avi', '.mov', '.txt']
+        if not any(file_name.endswith(ext) for ext in allowed_extensions):
+            raise ValidationError(_(f'Недопустимый тип файла: {file.name}'))
+        
+        return file
+    
+    def _is_video_file(self, filename):
+        """Проверяет, является ли файл видео"""
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+        return any(filename.lower().endswith(ext) for ext in video_extensions)
+
+
+class ExpenseCommentAttachmentForm(forms.ModelForm):
+    """Форма для отдельной загрузки вложений к комментарию"""
+    
+    class Meta:
+        model = ExpenseCommentAttachment
+        fields = ['file']
+        widgets = {
+            'file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.mp4,.avi,.mov,.txt'
+            }),
+        }
+    
+    def clean_file(self):
+        file = self.cleaned_data.get('file')
+        if file:
+            # Определяем тип файла по расширению
+            file_name = file.name.lower()
+            
+            # Проверяем размер файла (больше для видео)
+            max_size = MAX_FILE_SIZE * 10 if self._is_video_file(file_name) else MAX_FILE_SIZE
+            if file.size > max_size:
+                raise ValidationError(_(f'Размер файла не должен превышать {max_size // (1024*1024)} МБ.'))
+            
+            # Проверяем расширение файла
+            allowed_extensions = ALLOWED_FILE_EXTENSIONS + ['.mp4', '.avi', '.mov', '.txt']
+            if not any(file_name.endswith(ext) for ext in allowed_extensions):
+                raise ValidationError(_('Недопустимый тип файла.'))
+        
+        return file
+    
+    def _is_video_file(self, filename):
+        """Проверяет, является ли файл видео"""
+        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+        return any(filename.lower().endswith(ext) for ext in video_extensions)
 
 
 class ExpenseFilterForm(forms.Form):

@@ -100,6 +100,40 @@
             </div>
         </div>
 
+        <!-- Telegram интеграция -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-telegram me-2"></i>Telegram интеграция
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user.telegram_profile %}
+                    <div class="alert alert-success">
+                        <h6><i class="bi bi-check-circle"></i> Telegram аккаунт подключен</h6>
+                        <p class="mb-2">
+                            <strong>Telegram ID:</strong> {{ user.telegram_profile.telegram_id }}<br>
+                            <strong>Username:</strong> @{{ user.telegram_profile.username|default:"не указан" }}<br>
+                            <strong>Имя в Telegram:</strong> {{ user.telegram_profile.first_name }} {{ user.telegram_profile.last_name }}
+                        </p>
+                        <a href="{% url 'accounts:telegram_disconnect' %}" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-x-circle"></i>
+                            Отключить Telegram
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Telegram не подключен</h6>
+                        <p class="mb-3">Подключите ваш Telegram аккаунт для управления проектами через бота.</p>
+                        <a href="{% url 'accounts:telegram_connect' %}" class="btn btn-primary">
+                            <i class="bi bi-telegram"></i>
+                            Подключить Telegram
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Форма редактирования -->
         <div class="card mb-4">
             <div class="card-header">

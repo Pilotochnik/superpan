@@ -253,35 +253,6 @@
         </div>
         {% endif %}
 
-        <!-- Быстрые действия -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-lightning me-2"></i>Быстрые действия
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{% url 'kanban:board' project.pk %}" class="btn btn-primary">
-                        <i class="bi bi-kanban me-2"></i>Открыть канбан-доску
-                    </a>
-                    <a href="{% url 'projects:estimate' project.pk %}" class="btn btn-outline-success me-2">
-                        <i class="bi bi-calculator me-2"></i>Простая смета
-                    </a>
-                    <a href="{% url 'projects:estimate_detailed' project.pk %}" class="btn btn-success">
-                        <i class="bi bi-calculator-fill me-2"></i>Детализированная смета
-                    </a>
-                    <a href="{% url 'kanban:analytics' project.pk %}" class="btn btn-outline-info">
-                        <i class="bi bi-graph-up me-2"></i>Аналитика расходов
-                    </a>
-                    {% if can_manage %}
-                    <button class="btn btn-outline-success" onclick="generateAccessKey()">
-                        <i class="bi bi-key me-2"></i>Создать ключ доступа
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 

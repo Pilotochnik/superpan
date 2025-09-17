@@ -1,9 +1,4 @@
-from django.contrib.auth import logout
-from django.shortcuts import redirect
-from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
-from django.urls import reverse
-from django.utils import timezone
 from .models import UserSession
 import logging
 
@@ -148,7 +143,7 @@ class SessionSecurityMiddleware(MiddlewareMixin):
                         'Ваша сессия истекла из-за длительного бездействия. '
                         'Войдите в систему повторно.'
                     )
-                    return redirect('accounts:login')
+                    return redirect('accounts:telegram_login')
         
         except Exception as e:
             logger.error(f"Error in SessionSecurityMiddleware: {e}", exc_info=True)

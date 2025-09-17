@@ -420,35 +420,37 @@
                     </div>
                     
                     <ul class="nav flex-column">
+                        {% if user.is_superuser %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'projects:dashboard' %}">
                                 <i class="bi bi-house-door"></i>
                                 Главная
                             </a>
                         </li>
+                        {% endif %}
+                        
+                        <!-- Обычное меню для всех ролей -->
+                        {% if user.can_view_projects %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.resolver_match.url_name == 'list' %}active{% endif %}" href="{% url 'projects:list' %}">
                                 <i class="bi bi-folder"></i>
                                 Проекты
                             </a>
                         </li>
+                        {% endif %}
+                        {% if user.can_view_estimates %}
                         <li class="nav-item">
                             <a class="nav-link {% if 'estimate' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'projects:estimate_rates_list' %}">
                                 <i class="bi bi-calculator"></i>
                                 Сметы и расценки
                             </a>
                         </li>
+                        {% endif %}
+                        {% if user.can_manage_warehouse %}
                         <li class="nav-item">
-                            <a class="nav-link {% if 'kanban' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'kanban:board' '92e58391-d60a-4dd4-9108-78e12cd5efd1' %}">
-                                <i class="bi bi-kanban"></i>
-                                Задачи
-                            </a>
-                        </li>
-                        {% if user.can_manage_projects %}
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'create' %}active{% endif %}" href="{% url 'projects:create' %}">
-                                <i class="bi bi-plus-circle"></i>
-                                Создать проект
+                            <a class="nav-link {% if 'warehouse' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'warehouse:dashboard' %}">
+                                <i class="bi bi-box-seam"></i>
+                                Склад
                             </a>
                         </li>
                         {% endif %}
@@ -458,14 +460,14 @@
                                 Профиль
                             </a>
                         </li>
-                                                       {% if user.is_superuser_role %}
-                               <li class="nav-item">
-                                   <a class="nav-link" href="{% url 'admin_panel:dashboard' %}">
-                                       <i class="bi bi-gear"></i>
-                                       Администрирование
-                                   </a>
-                               </li>
-                               {% endif %}
+                        {% if user.is_admin_role %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'admin_panel:dashboard' %}">
+                                <i class="bi bi-gear"></i>
+                                Администрирование
+                            </a>
+                        </li>
+                        {% endif %}
                     </ul>
                     
                     <hr class="my-3" style="border-color: rgba(255,255,255,0.2);">
@@ -538,34 +540,44 @@
         });
 
         // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
+        document.addEventListener('DOMContentLoaded', function() {
+            const anchorLinks = document.querySelectorAll('a[href^="#"]');
+            if (anchorLinks.length > 0) {
+                anchorLinks.forEach(anchor => {
+                    anchor.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        const target = document.querySelector(this.getAttribute('href'));
+                        if (target) {
+                            target.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        }
                     });
-                }
-            });
+                });
+            }
         });
 
         // Add loading state to forms
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', function() {
-                const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    const originalText = submitBtn.innerHTML;
-                    submitBtn.innerHTML = '<span class="loading"></span> Загрузка...';
-                    
-                    setTimeout(() => {
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalText;
-                    }, 5000);
-                }
-            });
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form');
+            if (forms.length > 0) {
+                forms.forEach(form => {
+                    form.addEventListener('submit', function() {
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            const originalText = submitBtn.innerHTML;
+                            submitBtn.innerHTML = '<span class="loading"></span> Загрузка...';
+                            
+                            setTimeout(() => {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalText;
+                            }, 5000);
+                        }
+                    });
+                });
+            }
         });
 
         // Улучшенное мобильное меню
@@ -573,6 +585,11 @@
             const sidebar = document.getElementById('sidebarMenu');
             const overlay = document.getElementById('sidebarOverlay');
             const menuButton = document.querySelector('[data-bs-target="#sidebarMenu"]');
+            
+            // Проверяем, что элементы существуют
+            if (!sidebar || !overlay) {
+                return;
+            }
             
             // Функция для открытия/закрытия сайдбара
             function toggleSidebar() {
@@ -612,8 +629,8 @@
             // Закрытие при изменении размера окна
             window.addEventListener('resize', function() {
                 if (window.innerWidth > 768) {
-                    sidebar.classList.remove('show');
-                    overlay.classList.remove('show');
+                    if (sidebar) sidebar.classList.remove('show');
+                    if (overlay) overlay.classList.remove('show');
                     document.body.style.overflow = '';
                 }
             });
@@ -634,7 +651,7 @@
             function handleSwipe() {
                 if (touchEndX < touchStartX - 50) {
                     // Swipe left - close sidebar
-                    if (sidebar.classList.contains('show')) {
+                    if (sidebar && sidebar.classList.contains('show')) {
                         toggleSidebar();
                     }
                 }

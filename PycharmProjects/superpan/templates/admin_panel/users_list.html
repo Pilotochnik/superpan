@@ -69,9 +69,9 @@
                 </div>
                 {% endfor %}
                 <hr>
-                <a href="{% url 'admin_panel:create_user' %}" class="btn btn-success btn-admin w-100">
-                    <i class="bi bi-person-plus me-2"></i>
-                    Добавить пользователя
+                <a href="{% url 'admin_panel:register_telegram_user' %}" class="btn btn-primary btn-admin w-100">
+                    <i class="bi bi-telegram me-2"></i>
+                    📱 Зарегистрировать через Telegram
                 </a>
             </div>
         </div>
@@ -92,7 +92,7 @@
                 <thead>
                     <tr>
                         <th>Пользователь</th>
-                        <th>Email</th>
+                        <th>Telegram ID</th>
                         <th>Роль</th>
                         <th>Телефон</th>
                         <th>Статус</th>
@@ -114,8 +114,14 @@
                                 </div>
                             </div>
                         </td>
-                        <td data-label="Email">
-                            <code>{{ user_obj.email }}</code>
+                        <td data-label="Telegram ID">
+                            {% with telegram_id=user_obj.get_telegram_id %}
+                                {% if telegram_id %}
+                                    <span class="badge bg-primary">{{ telegram_id }}</span>
+                                {% else %}
+                                    <span class="text-muted">Не привязан</span>
+                                {% endif %}
+                            {% endwith %}
                         </td>
                         <td data-label="Роль">
                             <span class="badge badge-role badge-{{ user_obj.role }}">
@@ -141,6 +147,21 @@
                                    class="btn btn-sm btn-outline-primary" title="Редактировать">
                                     <i class="bi bi-pencil"></i>
                                 </a>
+                                
+                                {% with telegram_id=user_obj.get_telegram_id %}
+                                    {% if telegram_id %}
+                                        <a href="{% url 'admin_panel:telegram_unlink' user_obj.pk %}" 
+                                           class="btn btn-sm btn-outline-danger" title="Отвязать Telegram"
+                                           onclick="return confirm('Отвязать Telegram от пользователя?')">
+                                            <i class="bi bi-telegram"></i>
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'admin_panel:telegram_link' user_obj.pk %}" 
+                                           class="btn btn-sm btn-outline-success" title="Привязать Telegram">
+                                            📱
+                                        </a>
+                                    {% endif %}
+                                {% endwith %}
                                 
                                 {% if user_obj != user %}
                                 <form method="post" action="{% url 'admin_panel:toggle_user_status' user_obj.pk %}" 

@@ -102,6 +102,52 @@
             box-shadow: 0 8px 25px rgba(44, 90, 160, 0.3);
         }
 
+        .divider {
+            position: relative;
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #ddd;
+        }
+
+        .divider span {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0 15px;
+            position: relative;
+        }
+
+        .btn-telegram {
+            background: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.3s ease;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-telegram:hover {
+            background: #006699;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 136, 204, 0.3);
+        }
+
         .security-features {
             background: rgba(44, 90, 160, 0.1);
             border-radius: 12px;
@@ -222,6 +268,7 @@
                     Войти в систему
                 </button>
             </form>
+
 
             <div class="security-features">
                 <h6><i class="bi bi-shield-check me-2"></i>Безопасность</h6>

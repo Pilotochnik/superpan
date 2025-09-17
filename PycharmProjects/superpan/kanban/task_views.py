@@ -1,17 +1,10 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.http import JsonResponse
+from django.db.models import Count, Avg
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from django.views.generic import ListView, DetailView, CreateView, UpdateView
-from django.urls import reverse_lazy
-from django.db.models import Q, Count, Avg
-from django.utils import timezone
-from django.core.paginator import Paginator
-from django.contrib.auth.decorators import login_required
-from django.utils.translation import gettext_lazy as _
-import json
 
 from .task_models import (
     ProjectTask, TaskCategory, TaskPriority, TaskStatus, 
@@ -30,9 +23,9 @@ def task_board(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     
     # Проверяем доступ к проекту
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     # Получаем или создаем канбан-доску
     board, created = project.kanban_board.get_or_create(
@@ -99,9 +92,9 @@ def task_list(request, project_id):
     """Список задач проекта"""
     project = get_object_or_404(Project, id=project_id)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     # Поиск и фильтрация
     search_form = TaskSearchForm(request.GET)
@@ -168,9 +161,9 @@ def task_detail(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     # Форма комментариев
     comment_form = TaskCommentForm()
@@ -220,9 +213,9 @@ def create_task(request, project_id):
     """Создание новой задачи"""
     project = get_object_or_404(Project, id=project_id)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     if request.method == 'POST':
         form = ProjectTaskForm(request.POST, project=project)
@@ -274,9 +267,9 @@ def edit_task(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     if not task.can_user_edit(request.user):
         messages.error(request, 'У вас нет прав для редактирования этой задачи')
@@ -330,7 +323,7 @@ def add_comment(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         return JsonResponse({'error': 'Нет доступа к проекту'}, status=403)
     
     form = TaskCommentForm(request.POST)
@@ -369,7 +362,7 @@ def update_progress(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         return JsonResponse({'error': 'Нет доступа к проекту'}, status=403)
     
     if not task.can_user_edit(request.user):
@@ -427,7 +420,7 @@ def assign_task(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         return JsonResponse({'error': 'Нет доступа к проекту'}, status=403)
     
     if not task.can_user_assign(request.user):
@@ -497,7 +490,7 @@ def move_task(request, project_id, task_id):
     project = get_object_or_404(Project, id=project_id)
     task = get_object_or_404(ProjectTask, id=task_id, project=project)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         return JsonResponse({'error': 'Нет доступа к проекту'}, status=403)
     
     if not task.can_user_edit(request.user):
@@ -539,9 +532,9 @@ def task_analytics(request, project_id):
     """Аналитика по задачам проекта"""
     project = get_object_or_404(Project, id=project_id)
     
-    if not project.user_has_access(request.user):
+    if not project.can_user_access(request.user):
         messages.error(request, 'У вас нет доступа к этому проекту')
-        return redirect('projects:project_list')
+        return redirect('projects:list')
     
     # Статистика по статусам
     status_stats = TaskStatus.objects.annotate(
@@ -583,3 +576,71 @@ def task_analytics(request, project_id):
     }
     
     return render(request, 'kanban/task_analytics.html', context)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def upload_task_files(request, task_id):
+    """API для загрузки файлов к задаче"""
+    try:
+        task = get_object_or_404(ProjectTask, id=task_id)
+        
+        # Проверяем права доступа
+        if not request.user.can_manage_tasks() and task.created_by != request.user:
+            return JsonResponse({'error': 'Недостаточно прав'}, status=403)
+        
+        files = request.FILES.getlist('files')
+        uploaded_files = []
+        
+        for file in files:
+            # Создаем вложение
+            attachment = TaskAttachment.objects.create(
+                task=task,
+                file=file,
+                uploaded_by=request.user,
+                filename=file.name
+            )
+            uploaded_files.append({
+                'id': attachment.id,
+                'filename': attachment.filename,
+                'url': attachment.file.url,
+                'size': attachment.file.size
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Загружено {len(uploaded_files)} файлов',
+            'files': uploaded_files
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@login_required
+def delete_task_attachment(request, attachment_id):
+    """API для удаления вложения задачи"""
+    try:
+        attachment = get_object_or_404(TaskAttachment, id=attachment_id)
+        
+        # Проверяем права доступа
+        if not request.user.can_manage_tasks() and attachment.uploaded_by != request.user:
+            return JsonResponse({'error': 'Недостаточно прав'}, status=403)
+        
+        # Удаляем файл с диска
+        if attachment.file:
+            attachment.file.delete(save=False)
+        
+        # Удаляем запись из базы
+        attachment.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Вложение удалено'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

@@ -54,6 +54,13 @@ class Project(models.Model):
     start_date = models.DateField(_('Дата начала'), blank=True, null=True)
     end_date = models.DateField(_('Дата окончания'), blank=True, null=True)
     address = models.TextField(_('Адрес объекта'), blank=True)
+    avatar = models.ImageField(
+        _('Аватарка проекта'),
+        upload_to='project_avatars/',
+        null=True,
+        blank=True,
+        help_text=_('Фото объекта для проекта')
+    )
     is_active = models.BooleanField(_('Активен'), default=True)
     created_at = models.DateTimeField(_('Создан'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Обновлен'), auto_now=True)
@@ -90,7 +97,7 @@ class Project(models.Model):
 
     def can_user_access(self, user):
         """Проверить, может ли пользователь получить доступ к проекту"""
-        if user.is_superuser_role():
+        if user.is_admin_role():
             return True
         
         if self.created_by == user or self.foreman == user:

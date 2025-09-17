@@ -176,7 +176,7 @@
                             <div class="stat-card">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h6 class="mb-1">{{ stat.get_expense_type_display }}</h6>
+                                        <h6 class="mb-1">{{ stat.get_task_type_display }}</h6>
                                         <p class="mb-0 text-muted">{{ stat.count }} расходов</p>
                                     </div>
                                     <div class="text-end">
@@ -217,7 +217,7 @@
                                 <h6 class="mb-1">{{ expense.title }}</h6>
                                 <p class="text-muted mb-1">{{ expense.description|truncatechars:100 }}</p>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="badge expense-type-badge bg-info">{{ expense.get_expense_type_display }}</span>
+                                    <span class="badge expense-type-badge bg-info">{{ expense.get_task_type_display }}</span>
                                     <span class="badge bg-{% if expense.status == 'approved' %}success{% elif expense.status == 'rejected' %}danger{% else %}warning{% endif %}">
                                         {{ expense.get_status_display }}
                                     </span>
@@ -285,7 +285,7 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="expenseType" class="form-label">Тип расхода *</label>
-                                <select class="form-select" id="expenseType" name="expense_type" required>
+                                <select class="form-select" id="expenseType" name="task_type" required>
                                     <option value="">Выберите тип</option>
                                     <option value="material">Материалы</option>
                                     <option value="labor">Работы</option>

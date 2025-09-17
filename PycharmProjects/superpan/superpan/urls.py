@@ -17,6 +17,7 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('projects/', include('projects.urls')),
     path('kanban/', include('kanban.urls')),
+    path('warehouse/', include('warehouse.urls')),
     path('', LoginView.as_view(), name='login'),  # Root redirects to login
 ]
 

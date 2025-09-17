@@ -21,6 +21,7 @@ if DEBUG:
         'localhost', 
         '127.0.0.1', 
         '0.0.0.0',
+        '192.168.0.116',     # Локальный IP для доступа с телефона
         '*.ngrok-free.app',  # Для ngrok
         '*.ngrok.io',        # Для старых версий ngrok
         '*.serveo.net',      # Для serveo
@@ -54,6 +55,9 @@ INSTALLED_APPS = [
     'projects',
     'kanban',
     'admin_panel',
+    'warehouse',
+    'construction',
+    'telegram_bot',
 ]
 
 MIDDLEWARE = [
@@ -64,6 +68,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.telegram_middleware.TelegramAuthMiddleware',  # Telegram авторизация
+    'accounts.telegram_middleware.TelegramBotMiddleware',   # Telegram бот интеграция
     'accounts.middleware.DeviceTrackingMiddleware',  # Device binding security
     'accounts.middleware.SessionSecurityMiddleware',  # Session timeout
     'accounts.middleware.SingleSessionMiddleware',  # Single session per user
@@ -135,6 +141,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.app',
     'https://*.ngrok.io',
 ]
+
+# Telegram Bot настройки
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8367784150:AAF7m6ZWW9BcoV17YOqnkLp1ScPmYpssy_E')
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'projectpanell_bot').replace('@', '')
+TELEGRAM_WEBHOOK_URL = os.getenv('TELEGRAM_WEBHOOK_URL', '')
 
 # Настройки cookies - безопасные для продакшена
 CSRF_COOKIE_SECURE = not DEBUG  # True для HTTPS в продакшене
@@ -269,3 +280,24 @@ LOGGING = {
 
 # Create logs directory
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+
+# Base URL for notifications and links
+BASE_URL = 'http://192.168.0.116:8000'
+
+# Настройки для локальной разработки
+CSRF_TRUSTED_ORIGINS = [
+    'http://192.168.0.116:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
+# Настройки сессий для локальной сети
+SESSION_COOKIE_SECURE = False  # Для HTTP в локальной сети
+CSRF_COOKIE_SECURE = False     # Для HTTP в локальной сети
+
+# Дополнительные настройки для отладки
+LOGGING['loggers']['django.security'] = {
+    'handlers': ['file', 'console'],
+    'level': 'DEBUG',
+    'propagate': True,
+}

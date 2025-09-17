@@ -2,7 +2,6 @@
 Базовые классы форм для проекта SuperPan
 """
 from django import forms
-from django.utils.translation import gettext_lazy as _
 
 
 class BaseForm(forms.Form):

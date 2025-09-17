@@ -4,14 +4,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views.generic import View
-from django.core.exceptions import ValidationError
+from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
-from datetime import timedelta
-import json
 import logging
 
 from .models import User, UserSession, ProjectAccessKey, LoginAttempt
@@ -125,7 +121,7 @@ def logout_view(request):
     UserSession.objects.filter(user=request.user).delete()
     logout(request)
     messages.success(request, 'Вы успешно вышли из системы.')
-    return redirect('accounts:login')
+    return redirect('accounts:telegram_login')
 
 
 @login_required
@@ -166,9 +162,9 @@ def profile_view(request):
 
 def register_view(request):
     """Регистрация нового пользователя (только для суперпользователей)"""
-    if not (request.user.is_authenticated and request.user.is_superuser_role()):
+    if not (request.user.is_authenticated and request.user.is_admin_role()):
         messages.error(request, 'У вас нет прав для регистрации новых пользователей.')
-        return redirect('accounts:login')
+        return redirect('accounts:telegram_login')
     
     if request.method == 'POST':
         form = UserRegistrationForm(request.POST)
@@ -294,7 +290,7 @@ def use_access_key(request):
 @require_http_methods(["POST"])
 def reset_device_binding(request):
     """Сброс привязки к устройству (только для суперпользователей)"""
-    if not request.user.is_superuser_role():
+    if not request.user.is_admin_role():
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)
     
     user_id = request.POST.get('user_id')
@@ -343,3 +339,14 @@ def user_activity(request):
     }
     
     return render(request, 'accounts/activity.html', context)
+
+
+@login_required
+def role_info_view(request):
+    """Страница с информацией о ролях и правах доступа"""
+    # Доступ только для суперпользователей
+    if not request.user.is_superuser:
+        messages.error(request, 'Доступ запрещен. Только суперпользователи могут просматривать информацию о ролях.')
+        return redirect('accounts:profile')
+    
+    return render(request, 'accounts/role_info.html')

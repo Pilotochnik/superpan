@@ -182,19 +182,19 @@
                 <i class="bi bi-pie-chart me-2"></i>Расходы по типам
             </h5>
             
-            {% for expense_type in expenses_by_type %}
+            {% for task_type in expenses_by_type %}
             <div class="expense-type-item">
                 <div class="d-flex align-items-center">
-                    <div class="type-icon type-{{ expense_type.expense_type }}">
-                        {% if expense_type.expense_type == 'material' %}
+                    <div class="type-icon type-{{ task_type.task_type }}">
+                        {% if task_type.task_type == 'material' %}
                             <i class="bi bi-box"></i>
-                        {% elif expense_type.expense_type == 'labor' %}
+                        {% elif task_type.task_type == 'labor' %}
                             <i class="bi bi-person-gear"></i>
-                        {% elif expense_type.expense_type == 'transport' %}
+                        {% elif task_type.task_type == 'transport' %}
                             <i class="bi bi-truck"></i>
-                        {% elif expense_type.expense_type == 'fuel' %}
+                        {% elif task_type.task_type == 'fuel' %}
                             <i class="bi bi-fuel-pump"></i>
-                        {% elif expense_type.expense_type == 'equipment' %}
+                        {% elif task_type.task_type == 'equipment' %}
                             <i class="bi bi-tools"></i>
                         {% else %}
                             <i class="bi bi-three-dots"></i>
@@ -202,22 +202,22 @@
                     </div>
                     <div>
                         <div class="fw-bold">
-                            {% if expense_type.expense_type == 'material' %}Материалы
-                            {% elif expense_type.expense_type == 'labor' %}Работы
-                            {% elif expense_type.expense_type == 'transport' %}Транспорт
-                            {% elif expense_type.expense_type == 'fuel' %}Топливо
-                            {% elif expense_type.expense_type == 'equipment' %}Оборудование
+                            {% if task_type.task_type == 'material' %}Материалы
+                            {% elif task_type.task_type == 'labor' %}Работы
+                            {% elif task_type.task_type == 'transport' %}Транспорт
+                            {% elif task_type.task_type == 'fuel' %}Топливо
+                            {% elif task_type.task_type == 'equipment' %}Оборудование
                             {% else %}Прочее
                             {% endif %}
                         </div>
-                        <small class="text-muted">{{ expense_type.count }} расход{{ expense_type.count|pluralize:",,ов" }}</small>
+                        <small class="text-muted">{{ task_type.count }} расход{{ task_type.count|pluralize:",,ов" }}</small>
                     </div>
                 </div>
                 <div class="text-end">
-                    <div class="fw-bold">{{ expense_type.total_amount|floatformat:0 }}₽</div>
+                    <div class="fw-bold">{{ task_type.total_amount|floatformat:0 }}₽</div>
                                                         <small class="text-muted">
                                         {% if total_spent > 0 %}
-                                            {% widthratio expense_type.total_amount total_spent 100 as percentage %}
+                                            {% widthratio task_type.total_amount total_spent 100 as percentage %}
                                             {{ percentage|floatformat:1 }}%
                                         {% else %}
                                             0%

@@ -1,26 +1,14 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Sum, Q
-from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
-import csv
-import io
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
-from accounts.models import User, ProjectAccessKey, LoginAttempt, UserSession
+from accounts.models import User, ProjectAccessKey, LoginAttempt, UserSession, TelegramUser
 from projects.models import Project, ProjectActivity
 from kanban.models import ExpenseItem, ExpenseCategory
 from accounts.forms import UserRegistrationForm
@@ -29,7 +17,7 @@ from projects.forms import ProjectForm
 
 def is_superuser(user):
     """Проверка, что пользователь - суперпользователь"""
-    return user.is_authenticated and user.is_superuser_role()
+    return user.is_authenticated and user.is_admin_role()
 
 
 @login_required
@@ -118,23 +106,6 @@ def users_list(request):
     }
     
     return render(request, 'admin_panel/users_list.html', context)
-
-
-@login_required
-@user_passes_test(is_superuser)
-def create_user(request):
-    """Создание нового пользователя"""
-    
-    if request.method == 'POST':
-        form = UserRegistrationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            messages.success(request, f'Пользователь "{user.get_full_name()}" успешно создан.')
-            return redirect('admin_panel:users_list')
-    else:
-        form = UserRegistrationForm()
-    
-    return render(request, 'admin_panel/create_user.html', {'form': form})
 
 
 @login_required
@@ -327,7 +298,7 @@ def expenses_overview(request):
     ).order_by('status')
     
     # Статистика по типам
-    type_stats = ExpenseItem.objects.values('expense_type').annotate(
+    type_stats = ExpenseItem.objects.values('task_type').annotate(
         count=Count('id'),
         total_amount=Sum('amount')
     ).order_by('-total_amount')
@@ -812,8 +783,8 @@ def export_csv(request):
 @login_required
 def device_management(request):
     """Управление устройствами пользователей"""
-    if not request.user.is_superuser_role():
-        return redirect('accounts:login')
+    if not request.user.is_admin_role():
+        return redirect('accounts:telegram_login')
     
     # Получаем пользователей с привязанными устройствами
     users_with_devices = User.objects.exclude(device_fingerprint='').select_related().order_by('-updated_at')
@@ -841,7 +812,7 @@ def device_management(request):
 @require_http_methods(["POST"])
 def reset_device_binding(request, user_id):
     """Сброс привязки к устройству"""
-    if not request.user.is_superuser_role():
+    if not request.user.is_admin_role():
         return JsonResponse({'error': 'Недостаточно прав'}, status=403)
     
     try:
@@ -857,3 +828,119 @@ def reset_device_binding(request, user_id):
         return JsonResponse({'error': 'Пользователь не найден'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_superuser)
+def register_telegram_user(request):
+    """Регистрация пользователя через Telegram"""
+    if request.method == 'POST':
+        try:
+            telegram_id = request.POST.get('telegram_id')
+            first_name = request.POST.get('first_name')
+            last_name = request.POST.get('last_name')
+            role = request.POST.get('role')
+            username = request.POST.get('username', '')
+            
+            # Проверяем, не существует ли уже пользователь с таким Telegram ID
+            if TelegramUser.objects.filter(telegram_id=telegram_id).exists():
+                messages.error(request, f'Пользователь с Telegram ID {telegram_id} уже существует!')
+                return redirect('admin_panel:register_telegram_user')
+            
+            # Создаем пользователя
+            user = User.objects.create_user(
+                first_name=first_name,
+                last_name=last_name,
+                role=role,
+                is_active=True
+            )
+            
+            # Создаем связанную запись TelegramUser
+            TelegramUser.objects.create(
+                user=user,
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                is_bot=False,
+                language_code='ru'
+            )
+            
+            messages.success(request, f'Пользователь {user.get_full_name()} успешно зарегистрирован!')
+            return redirect('admin_panel:users_list')
+            
+        except Exception as e:
+            messages.error(request, f'Ошибка при создании пользователя: {str(e)}')
+    
+    context = {
+        'roles': User.Role.choices,
+    }
+    return render(request, 'admin_panel/register_telegram_user.html', context)
+
+
+@login_required
+@user_passes_test(is_superuser)
+def telegram_link(request, pk):
+    """Привязка Telegram к существующему пользователю"""
+    try:
+        user = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        messages.error(request, 'Пользователь не найден!')
+        return redirect('admin_panel:users_list')
+    
+    if request.method == 'POST':
+        try:
+            telegram_id = request.POST.get('telegram_id')
+            username = request.POST.get('username', '')
+            
+            # Проверяем, не привязан ли уже этот Telegram ID
+            if TelegramUser.objects.filter(telegram_id=telegram_id).exists():
+                messages.error(request, f'Telegram ID {telegram_id} уже привязан к другому пользователю!')
+                return redirect('admin_panel:telegram_link', pk=pk)
+            
+            # Проверяем, не привязан ли уже Telegram к этому пользователю
+            if TelegramUser.objects.filter(user=user).exists():
+                messages.error(request, 'У этого пользователя уже есть привязанный Telegram аккаунт!')
+                return redirect('admin_panel:telegram_link', pk=pk)
+            
+            # Создаем связь с Telegram
+            TelegramUser.objects.create(
+                user=user,
+                telegram_id=telegram_id,
+                username=username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                is_bot=False,
+                language_code='ru'
+            )
+            
+            messages.success(request, f'Telegram аккаунт успешно привязан к пользователю {user.get_full_name()}!')
+            return redirect('admin_panel:users_list')
+            
+        except Exception as e:
+            messages.error(request, f'Ошибка при привязке Telegram: {str(e)}')
+    
+    context = {
+        'user': user,
+    }
+    return render(request, 'admin_panel/telegram_link.html', context)
+
+
+@login_required
+@user_passes_test(is_superuser)
+def telegram_unlink(request, pk):
+    """Отвязка Telegram от пользователя"""
+    try:
+        user = User.objects.get(pk=pk)
+        telegram_user = TelegramUser.objects.get(user=user)
+        telegram_user.delete()
+        messages.success(request, f'Telegram аккаунт отвязан от пользователя {user.get_full_name()}!')
+    except User.DoesNotExist:
+        messages.error(request, 'Пользователь не найден!')
+    except TelegramUser.DoesNotExist:
+        messages.error(request, 'У пользователя нет привязанного Telegram аккаунта!')
+    except Exception as e:
+        messages.error(request, f'Ошибка при отвязке Telegram: {str(e)}')
+    
+    return redirect('admin_panel:users_list')
+

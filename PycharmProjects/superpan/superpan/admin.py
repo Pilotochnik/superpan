@@ -1,10 +1,4 @@
 from django.contrib import admin
-from django.template.response import TemplateResponse
-from django.urls import path
-from django.db.models import Count
-from accounts.models import User, UserSession, LoginAttempt
-from projects.models import Project
-from kanban.models import ExpenseItem
 
 
 class SuperPanAdminSite(admin.AdminSite):
